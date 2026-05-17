@@ -8,10 +8,13 @@ A step-by-step informational wizard produced for the City of Milwaukee License D
 
 ```
 Muni_ID_Walkthrough/
-├── index.html          # All HTML markup; seven step sections
+├── index.html          # All HTML markup; nine step sections
 ├── wizard.js           # All wizard logic (navigation, validation, i18n, summary)
 ├── styles.css          # All styling (Milwaukee branding, responsive, RTL, print)
 ├── translations.json   # All UI strings in five languages
+├── tests.js            # 34 Node.js unit tests (run with: node tests.js)
+├── dom-tests.html      # Browser DOM simulation tests (11 paths + edge cases)
+├── CCCC Logo.png       # City of Milwaukee official logo (used in header)
 ├── launch.sh           # Local HTTP server launcher (required for fetch())
 ├── CHANGELOG.md        # Change history
 └── README.md           # This file
@@ -61,8 +64,6 @@ Copy the four files (`index.html`, `wizard.js`, `styles.css`, `translations.json
 
 **Font dependency:** `index.html` loads Montserrat from Google Fonts. An internet connection is required on first load; subsequent visits use the browser cache. On air-gapped deployments, self-host Montserrat or remove the `<link>` tags — the wizard falls back to Arial cleanly.
 
-**Logo placeholder:** The header currently shows a dashed placeholder box. Replace it with the official City of Milwaukee horizontal "tower" logo (white/reverse version) obtained from the Brand Officer. See the `<!-- TODO -->` comment in `index.html` for details.
-
 The wizard can be embedded in an existing city page inside a `<div>` — `dir="rtl"` is set on `#wizard-container` only, so Arabic layout does not affect surrounding content.
 
 ---
@@ -103,6 +104,8 @@ To update a string, find its key and edit the value for the relevant language co
 - **Combined lost/stolen/damaged:** Single sub-scenario merges what were previously two separate options.
 - **Address change path:** Shorter 6-step path. If the user no longer has their old ID, they are automatically redirected to the full replacement path.
 - **Full public records legal text:** The expandable legal notice contains the full official text (in English) for all five languages.
+- **"I don't have any" inline warnings:** If a user has no qualifying identity (Stage 2) or residency documents, selecting the "I don't have any of the following items" radio immediately shows an inline guidance panel and blocks Next. Forward navigation is blocked, not redirected.
+- **AI disclosure notice:** A small translated notice at the bottom of every page discloses that AI tools were used in development and that non-English translations may contain inaccuracies.
 
 ---
 

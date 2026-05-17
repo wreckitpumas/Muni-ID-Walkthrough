@@ -3,6 +3,18 @@
 All notable changes are documented here in reverse chronological order.
 
 ---
+## [0.7.20] - 2026-05-16 - Sync README with current project state
+
+Corrected three stale sections in README.md to match the codebase as of 0.7.19:
+
+- File structure table: added `tests.js`, `dom-tests.html`, and `CCCC Logo.png` (all present since 0.3.1 / 0.7.14 but not listed)
+- `index.html` description: corrected "seven step sections" to "nine step sections" (language, scenario, eligibility, confirm_id, identity_a, identity_b, residency, visit, summary)
+- How to Deploy: removed stale logo-placeholder TODO (replaced with official logo in 0.7.14)
+- Key Features: added entries for "I don't have any" inline warnings (0.7.16/0.7.19) and AI disclosure notice (0.7.6)
+
+**Files changed:** `README.md`
+
+---
 ## [0.7.19] - 2026-05-16 - Fix identity B _none to cover both document groups
 
 ### Fix: "I don't have any" warning now triggers from either identity B group

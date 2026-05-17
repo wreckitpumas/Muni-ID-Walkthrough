@@ -10,6 +10,15 @@
    Supports: English · Español · Hmoob · မြန်မာ · العربية (RTL)
 ═══════════════════════════════════════════════════════════════ */
 
+/* ── Self-hosted font ── */
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/Montserrat-VariableFont_wght.ttf') format('truetype');
+}
+
 /* ── Custom Properties ── */
 :root {
   /* Brand-named aliases (City of Milwaukee Brand Guidelines) */

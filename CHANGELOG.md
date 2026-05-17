@@ -3,6 +3,31 @@
 All notable changes are documented here in reverse chronological order.
 
 ---
+## [0.7.21] - 2026-05-16 - Self-host Montserrat font, remove Google Fonts dependency
+
+The wizard no longer makes any external network requests on load. Montserrat is now
+served from the local `fonts/` directory.
+
+**Removed:** Three Google Fonts `<link>` tags from `index.html` (two `preconnect` tags
+and the stylesheet link to `fonts.googleapis.com`).
+
+**Removed from fonts/ directory:** All files except the variable font:
+- `Montserrat-Italic-VariableFont_wght.ttf` (italic variable font - unused)
+- `static/Montserrat-Regular.ttf`, `Medium.ttf`, `SemiBold.ttf`, `Bold.ttf`,
+  `ExtraBold.ttf`, `Black.ttf`, `Light.ttf`, `ExtraLight.ttf`, `Thin.ttf` (static uprights)
+- All 9 italic static TTFs
+- `OFL.txt`, `README.txt`
+
+**Kept:** `fonts/Montserrat-VariableFont_wght.ttf` - covers all weights 100-900 in a
+single file. The source `Montserrat/` directory has been replaced with `fonts/`.
+
+**Added:** One `@font-face` declaration at the top of `styles.css` (before `:root`):
+`font-weight: 100 900` variable range, `font-display: swap`, TTF format. The existing
+`--font-family: 'Montserrat', Arial, sans-serif` custom property is unchanged.
+
+**Files changed:** `index.html`, `styles.css`, `fonts/` (directory created with one file)
+
+---
 ## [0.7.20] - 2026-05-16 - Sync README with current project state
 
 Corrected three stale sections in README.md to match the codebase as of 0.7.19:

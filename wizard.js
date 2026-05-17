@@ -133,6 +133,14 @@
 
   function prepareStep(stepId) {
     switch (stepId) {
+      case 'scenario': {
+        const subPanel = document.getElementById('sub-scenario-panel');
+        const checked  = document.querySelector('input[name="scenario"]:checked');
+        if (subPanel && checked && checked.value === 'already_have') {
+          subPanel.hidden = false;
+        }
+        break;
+      }
       case 'identity_a':
         renderIdentityADocs();
         setFeedback('ida-feedback', null);
@@ -671,7 +679,7 @@
     };
     addReminder('su_rem_originals');
     addReminder('su_rem_fee');
-    if (needsFullPath) addReminder('su_rem_60days');
+    addReminder('su_rem_60days');
     if (state.scenario === 'already_have' && state.subScenario === 'address_change') {
       addReminder('su_rem_bring_old_id');
     }
@@ -680,6 +688,14 @@
     nodes.push(secRem);
 
     container.replaceChildren(...nodes);
+
+    /* Sync the visit-reprise fee to match the visit step */
+    const summaryFeeEl = document.getElementById('summary-fee-display');
+    if (summaryFeeEl) {
+      const feeKey = (state.scenario === 'already_have') ? 'vi_fee_replacement' : 'vi_fee';
+      summaryFeeEl.dataset.i18n = feeKey;
+      summaryFeeEl.textContent  = t(feeKey);
+    }
   }
 
   function isFullPath() {

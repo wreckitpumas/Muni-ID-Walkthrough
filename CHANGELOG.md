@@ -3,6 +3,34 @@
 All notable changes are documented here in reverse chronological order.
 
 ---
+## [0.7.22] - 2026-05-16 - Pre-launch bug sweep: 3 fixes
+
+Three bugs found and fixed during final pre-launch audit.
+
+**Bug 1 - 60-day residency reminder missing from address-change summary:**
+`renderSummary()` only added the `su_rem_60days` reminder when `isFullPath()` was true.
+Users on the address-change path (who confirmed they have their ID) still go through the
+residency step and must bring a document dated within 60 days - the reminder was silently
+omitted from their checklist. Removed the `if (needsFullPath)` gate; the 60-day reminder
+now appears for every scenario since residency is included in all three step sequences.
+
+**Bug 2 - Sub-scenario panel hidden after back navigation:**
+`prepareStep()` had no case for `'scenario'`. When a user who had selected "I already have
+a Municipal ID" advanced past the scenario step and then pressed Back, the sub-scenario
+panel (showing address/lost/expired options) stayed hidden even though the radio button
+remained checked. Added a `'scenario'` case to `prepareStep()` that re-shows the panel
+when the checked radio is `already_have`.
+
+**Bug 3 - Summary visit-info reprise always showed new-ID fee:**
+The "Visit Information" section at the bottom of the summary step hardcoded
+`data-i18n="vi_fee"` ($10, nonrefundable) for all scenarios. Replacement/renewal users
+should see `vi_fee_replacement` ($10 replacement fee, nonrefundable). Added
+`id="summary-fee-display"` to the fee list item and a post-render update in
+`renderSummary()` that switches the key and text based on `state.scenario`.
+
+**Files changed:** `wizard.js`, `index.html`
+
+---
 ## [0.7.21] - 2026-05-16 - Self-host Montserrat font, remove Google Fonts dependency
 
 The wizard no longer makes any external network requests on load. Montserrat is now

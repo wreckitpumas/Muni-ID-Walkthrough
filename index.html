@@ -1,0 +1,694 @@
+<!--
+  Milwaukee Municipal ID Walkthrough Wizard – index.html
+  -------------------------------------------------------
+  Main HTML structure for the step-by-step informational wizard that helps
+  City of Milwaukee residents understand what they need to obtain, replace,
+  or renew a Municipal Identification (ID) Card.
+
+  Steps:
+    New ID / Lost-Stolen-Damaged / Expired (7 or 8 steps):
+      language → scenario → eligibility → identity_a → [identity_b] → residency → visit → summary
+    Address Change (6 steps):
+      language → scenario → confirm_id → residency → visit → summary
+    Address Change (no old ID – redirected): same as New ID path above.
+
+  This file collects ZERO user data. There are no form submissions, no cookies,
+  no analytics, and no external API calls. All interaction state lives in browser
+  memory only and is discarded when the tab is closed.
+
+  Depends on: styles.css (presentation), wizard.js (logic), translations.json (i18n)
+  Served via: launch.sh (local dev) or any static web server
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Milwaukee Municipal ID – What You Need</title>
+  <meta name="description" content="Step-by-step guide to obtaining, replacing, or renewing a City of Milwaukee Municipal Identification Card.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="wizard-container" class="wizard-container">
+
+  <!-- Shared icon definitions -->
+  <svg xmlns="http://www.w3.org/2000/svg" class="sr-only" aria-hidden="true">
+    <symbol id="icon-warning" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2L1 21h22L12 2z" stroke="#F9B421" stroke-width="2" stroke-linejoin="round" fill="#FEF7E0"/>
+      <line x1="12" y1="9" x2="12" y2="15" stroke="#F9B421" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="12" cy="18" r="0.5" fill="#F9B421" stroke="#F9B421" stroke-width="1"/>
+    </symbol>
+    <symbol id="icon-info" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+      <line x1="12" y1="11" x2="12" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="12" cy="8" r="0.5" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+    </symbol>
+  </svg>
+
+  <!-- Skip navigation -->
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+
+  <!-- ── Header ── -->
+  <header class="wizard-header" role="banner">
+    <div class="city-badge">
+      <img
+        src="CCCC Logo.png"
+        alt="City of Milwaukee"
+        class="city-logo"
+        width="48"
+        height="48"
+      >
+    </div>
+    <div class="header-text">
+      <p class="header-dept">City of Milwaukee – License Division</p>
+      <h1 class="wizard-title" id="wizard-title" data-i18n="wizard_title">Milwaukee Municipal ID – What You Need</h1>
+    </div>
+  </header>
+
+  <!-- ── Progress Bar (hidden on step 1) ── -->
+  <nav class="progress-nav" id="progress-nav" aria-label="Wizard progress" hidden>
+    <div class="progress-track">
+      <div
+        role="progressbar"
+        id="progress-bar"
+        class="progress-bar"
+        aria-valuenow="1"
+        aria-valuemin="1"
+        aria-valuemax="7"
+        aria-label="Wizard progress"
+      >
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="step-dots" id="step-dots"></div>
+    </div>
+    <ol class="step-labels" id="step-labels"></ol>
+    <p class="step-counter" id="step-counter" aria-live="polite" aria-atomic="true"></p>
+  </nav>
+
+  <!-- ── Screen-reader live region ── -->
+  <div id="sr-announce" role="status" aria-live="polite" aria-atomic="true" class="sr-only"></div>
+
+  <!-- ══════════════════════════════════════
+       MAIN CONTENT
+  ══════════════════════════════════════ -->
+  <main id="main-content" tabindex="-1">
+
+    <!-- ─────────────────────────────────
+         STEP 1 · Language Selection
+    ───────────────────────────────── -->
+    <section id="step-language" class="step step-language" role="region" aria-labelledby="lang-heading">
+      <div class="step-inner step-language-inner">
+        <h2 id="lang-heading" class="step-heading lang-heading"><span lang="en">Choose Your Language</span><span class="lang-heading-divider" aria-hidden="true"> / </span><span lang="es">Elija Su Idioma</span><span class="lang-heading-divider" aria-hidden="true"> / </span><span lang="hmn">Xaiv Koj Hom Lus</span><span class="lang-heading-divider" aria-hidden="true"> / </span><span lang="my">သင်၏ ဘာသာစကားကို ရွေးချယ်ပါ</span><span class="lang-heading-divider" aria-hidden="true"> / </span><span lang="ar" dir="rtl">اختر لغتك</span></h2>
+        <div class="lang-grid">
+          <button class="lang-btn" data-lang="en" lang="en" aria-label="English">
+            <span class="lang-native">English</span>
+          </button>
+          <button class="lang-btn" data-lang="es" lang="es" aria-label="Español">
+            <span class="lang-native">Español</span>
+          </button>
+          <button class="lang-btn" data-lang="hmn" lang="hmn" aria-label="Hmoob">
+            <span class="lang-native">Hmoob</span>
+          </button>
+          <button class="lang-btn" data-lang="my" lang="my" aria-label="မြန်မာ (Burmese)">
+            <span class="lang-native">မြန်မာ</span>
+          </button>
+          <button class="lang-btn" data-lang="ar" lang="ar" aria-label="العربية (Arabic)" dir="rtl">
+            <span class="lang-native">العربية</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────
+         STEP 2 · Scenario Selection
+    ───────────────────────────────── -->
+    <section id="step-scenario" class="step" role="region" aria-labelledby="sc-heading" hidden>
+      <div class="step-inner">
+        <h2 id="sc-heading" class="step-heading" data-i18n="sc_heading">What Do You Need?</h2>
+        <p class="step-sub" data-i18n="sc_sub"></p>
+
+        <!-- Main scenario choice -->
+        <fieldset class="scenario-fieldset">
+          <legend class="sr-only" data-i18n="sc_heading">What Do You Need?</legend>
+
+          <div class="scenario-options">
+            <label class="scenario-card" id="card-new">
+              <input type="radio" name="scenario" value="new" id="radio-new">
+              <span class="scenario-icon" aria-hidden="true">
+                <svg viewBox="0 0 32 32" width="36" height="36" focusable="false">
+                  <rect x="3" y="6" width="26" height="20" rx="3" fill="#1B365D"/>
+                  <circle cx="11" cy="16" r="4" fill="#A8C4E0"/>
+                  <rect x="18" y="13" width="8" height="2" rx="1" fill="#A8C4E0"/>
+                  <rect x="18" y="17" width="6" height="2" rx="1" fill="#A8C4E0"/>
+                  <circle cx="28" cy="8" r="5" fill="#F9B421"/>
+                  <text x="28" y="11" text-anchor="middle" font-size="8" font-weight="bold" fill="#1B365D">+</text>
+                </svg>
+              </span>
+              <span class="scenario-text">
+                <span class="scenario-title" data-i18n="sc_new_title">I need a new Municipal ID</span>
+                <span class="scenario-desc" data-i18n="sc_new_desc">This is my first time getting a Milwaukee Municipal ID.</span>
+              </span>
+              <span class="scenario-check" aria-hidden="true"></span>
+            </label>
+
+            <label class="scenario-card" id="card-existing">
+              <input type="radio" name="scenario" value="already_have" id="radio-existing">
+              <span class="scenario-icon" aria-hidden="true">
+                <svg viewBox="0 0 32 32" width="36" height="36" focusable="false">
+                  <rect x="3" y="6" width="26" height="20" rx="3" fill="#1B365D"/>
+                  <circle cx="11" cy="16" r="4" fill="#A8C4E0"/>
+                  <rect x="18" y="13" width="8" height="2" rx="1" fill="#A8C4E0"/>
+                  <rect x="18" y="17" width="6" height="2" rx="1" fill="#A8C4E0"/>
+                  <path d="M20 24 L24 28 L30 20" stroke="#F9B421" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <span class="scenario-text">
+                <span class="scenario-title" data-i18n="sc_existing_title">I already have or had a Municipal ID</span>
+                <span class="scenario-desc" data-i18n="sc_existing_desc">I need to replace, renew, or update my existing ID.</span>
+              </span>
+              <span class="scenario-check" aria-hidden="true"></span>
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- Sub-scenario (shown when already_have is chosen) -->
+        <div id="sub-scenario-panel" class="sub-scenario-panel" hidden aria-live="polite">
+          <fieldset class="sub-fieldset">
+            <legend id="sub-scenario-legend" class="sub-legend" data-i18n="sc_sub_heading">What happened to your ID?</legend>
+            <div class="sub-options">
+              <label class="sub-card">
+                <input type="radio" name="sub_scenario" value="address_change" id="sub-address">
+                <span class="sub-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 9.5V19a1 1 0 001 1h12a1 1 0 001-1V9.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 20v-6h6v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span class="sub-title" data-i18n="sc_address">My address changed</span>
+                <span class="sub-check" aria-hidden="true"></span>
+              </label>
+              <label class="sub-card">
+                <input type="radio" name="sub_scenario" value="lost_stolen_damaged" id="sub-lost-damaged">
+                <span class="sub-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M16 16l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+                <span class="sub-title" data-i18n="sc_lost_damaged">My ID was lost, stolen, or damaged</span>
+                <span class="sub-check" aria-hidden="true"></span>
+              </label>
+              <label class="sub-card">
+                <input type="radio" name="sub_scenario" value="expired" id="sub-expired">
+                <span class="sub-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="2"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+                <span class="sub-title" data-i18n="sc_expired">My ID is expired</span>
+                <span class="sub-check" aria-hidden="true"></span>
+              </label>
+            </div>
+          </fieldset>
+        </div>
+
+        <div id="sc-error" class="validation-error" role="alert" hidden data-i18n="sc_error"></div>
+
+        <div class="nav-buttons">
+          <button class="btn btn-back" id="sc-back" data-i18n="btn_back">Back</button>
+          <button class="btn btn-next" id="sc-next" data-i18n="btn_next">Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────
+         STEP 3 · Eligibility
+    ───────────────────────────────── -->
+    <section id="step-eligibility" class="step" role="region" aria-labelledby="el-heading" hidden>
+      <div class="step-inner">
+        <h2 id="el-heading" class="step-heading" data-i18n="el_heading">Let's Check Your Eligibility</h2>
+        <p class="step-sub" data-i18n="el_sub"></p>
+
+        <div class="eligibility-questions">
+
+          <!-- Q1: Residency (always visible) -->
+          <fieldset class="elig-fieldset">
+            <legend class="elig-question" data-i18n="el_res_q">Have you lived in the City of Milwaukee for at least 15 days?</legend>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="elig_res" value="yes" id="elig-res-yes">
+                <span class="radio-custom" aria-hidden="true"></span>
+                <span data-i18n="el_yes">Yes</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="elig_res" value="no" id="elig-res-no">
+                <span class="radio-custom" aria-hidden="true"></span>
+                <span data-i18n="el_no">No</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <!-- Q2: Age 18+ (always visible) -->
+          <fieldset class="elig-fieldset">
+            <legend class="elig-question" data-i18n="el_over18_q">Are you 18 years of age or older?</legend>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="elig_over18" value="yes" id="elig-over18-yes">
+                <span class="radio-custom" aria-hidden="true"></span>
+                <span data-i18n="el_yes">Yes</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="elig_over18" value="no" id="elig-over18-no">
+                <span class="radio-custom" aria-hidden="true"></span>
+                <span data-i18n="el_no">No</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <!-- Q3: Age 14+ (revealed only when Q2 = No) -->
+          <div id="over14-question-wrap" hidden>
+            <fieldset class="elig-fieldset elig-cascade">
+              <legend class="elig-question" data-i18n="el_over14_q">Are you at least 14 years of age?</legend>
+              <div class="radio-group">
+                <label class="radio-label">
+                  <input type="radio" name="elig_over14" value="yes" id="elig-over14-yes">
+                  <span class="radio-custom" aria-hidden="true"></span>
+                  <span data-i18n="el_yes">Yes</span>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="elig_over14" value="no" id="elig-over14-no">
+                  <span class="radio-custom" aria-hidden="true"></span>
+                  <span data-i18n="el_no">No</span>
+                </label>
+              </div>
+            </fieldset>
+          </div>
+
+        </div>
+
+        <!-- Under-18 notice (shown when under18 = yes) -->
+        <div id="under18-notice" class="notice notice-warning" role="note" hidden>
+          <span class="notice-icon" aria-hidden="true"><svg width="20" height="20" aria-hidden="true"><use href="#icon-warning"/></svg></span>
+          <span data-i18n="el_under18"></span>
+        </div>
+
+        <!-- Not-eligible message -->
+        <div id="not-eligible-panel" class="not-eligible-panel" role="alert" hidden>
+          <div class="not-elig-icon" aria-hidden="true"><svg width="28" height="28" aria-hidden="true"><use href="#icon-info"/></svg></div>
+          <h3 class="not-elig-heading" data-i18n="el_not_elig_heading">You may not currently qualify</h3>
+          <p id="not-elig-reason" class="not-elig-reason"></p>
+          <p class="not-elig-call">
+            <a href="tel:4142862238" data-i18n="el_call_guidance">Please call the License Division at (414) 286-2238 for guidance.</a>
+          </p>
+        </div>
+
+        <div id="el-error" class="validation-error" role="alert" hidden data-i18n="el_answer_both"></div>
+
+        <div class="nav-buttons">
+          <button class="btn btn-back" id="el-back" data-i18n="btn_back">Back</button>
+          <button class="btn btn-next" id="el-next" data-i18n="btn_next">Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────
+         STEP · Confirm Old ID (address change path)
+    ───────────────────────────────── -->
+    <section id="step-confirm_id" class="step" role="region" aria-labelledby="ci-heading" hidden>
+      <div class="step-inner">
+        <h2 id="ci-heading" class="step-heading" data-i18n="confirm_id_heading">Do You Have Your Current ID?</h2>
+
+        <fieldset class="elig-fieldset">
+          <legend class="elig-question" data-i18n="confirm_id_q">Do you currently have your Municipal ID with you?</legend>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input type="radio" name="confirm_id" value="yes" id="confirm-id-yes">
+              <span class="radio-custom" aria-hidden="true"></span>
+              <span data-i18n="el_yes">Yes</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="confirm_id" value="no" id="confirm-id-no">
+              <span class="radio-custom" aria-hidden="true"></span>
+              <span data-i18n="el_no">No</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div id="ci-error" class="validation-error" role="alert" hidden data-i18n="sc_error"></div>
+
+        <div class="nav-buttons">
+          <button class="btn btn-back" id="ci-back" data-i18n="btn_back">Back</button>
+          <button class="btn btn-next" id="ci-next" data-i18n="btn_next">Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────
+         STEP · Identity Documents – Stage 1 (Option A)
+    ───────────────────────────────── -->
+    <section id="step-identity_a" class="step" role="region" aria-labelledby="ida-heading" hidden>
+      <div class="step-inner">
+        <h2 id="ida-heading" class="step-heading" data-i18n="id_heading">Identity Documents</h2>
+
+        <!-- ONE doc reminder -->
+        <div class="notice notice-info id-reminder" role="note">
+          <span class="notice-icon" aria-hidden="true"><svg width="20" height="20" aria-hidden="true"><use href="#icon-info"/></svg></span>
+          <strong data-i18n="id_one_doc_reminder">You only need to bring ONE document from this list.</strong>
+        </div>
+
+        <!-- 5-year expiration notice (prominent) -->
+        <div class="notice notice-warning" role="note">
+          <span class="notice-icon" aria-hidden="true"><svg width="20" height="20" aria-hidden="true"><use href="#icon-warning"/></svg></span>
+          <span data-i18n="id_expired_note"></span>
+        </div>
+
+        <p class="doc-instruction" data-i18n="id_instruction">Select the document you plan to bring:</p>
+
+        <!-- Option A documents (populated by JS) -->
+        <div id="identity-a-docs-container" class="docs-container"></div>
+
+        <!-- Live success feedback -->
+        <div id="ida-feedback" class="doc-feedback" role="status" hidden></div>
+
+        <!-- Call help note -->
+        <p class="call-help" data-i18n="id_call_help"></p>
+
+        <div class="nav-buttons">
+          <button class="btn btn-back" id="ida-back" data-i18n="btn_back">Back</button>
+          <button class="btn btn-next" id="ida-next" data-i18n="btn_next">Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────
+         STEP · Identity Documents – Stage 2 (Option B)
+    ───────────────────────────────── -->
+    <section id="step-identity_b" class="step" role="region" aria-labelledby="idb-heading" hidden>
+      <div class="step-inner">
+        <h2 id="idb-heading" class="step-heading" data-i18n="id_heading_b">Identity Documents - Option B</h2>
+
+        <!-- TWO docs reminder -->
+        <div class="notice notice-info id-reminder" role="note">
+          <span class="notice-icon" aria-hidden="true"><svg width="20" height="20" aria-hidden="true"><use href="#icon-info"/></svg></span>
+          <strong data-i18n="id_two_doc_reminder">You need TWO documents: at least one with your photo and at least one with your date of birth.</strong>
+        </div>
+
+        <!-- 5-year expiration notice (prominent) -->
+        <div class="notice notice-warning" role="note">
+          <span class="notice-icon" aria-hidden="true"><svg width="20" height="20" aria-hidden="true"><use href="#icon-warning"/></svg></span>
+          <span data-i18n="id_expired_note"></span>
+        </div>
+
+        <p class="doc-instruction" data-i18n="id_instruction">Select the document you plan to bring:</p>
+
+        <!-- Option B documents (populated by JS) -->
+        <div id="identity-b-docs-container" class="docs-container"></div>
+
+        <!-- No-identity-b-docs panel (shown live when _none radio selected) -->
+        <div id="idb-none-panel" class="not-eligible-panel" role="alert" hidden>
+          <div class="not-elig-icon" aria-hidden="true">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <p class="not-elig-heading" data-i18n="idb_none_heading"></p>
+          <p class="not-elig-call" data-i18n="idb_none_call"></p>
+        </div>
+
+        <!-- Live validation feedback -->
+        <div id="idb-feedback" class="doc-feedback" role="status" hidden></div>
+
+        <!-- Call help note -->
+        <p id="idb-call-help-p" class="call-help" data-i18n="id_call_help"></p>
+
+        <div class="nav-buttons">
+          <button class="btn btn-back" id="idb-back" data-i18n="btn_back">Back</button>
+          <button class="btn btn-next" id="idb-next" data-i18n="btn_next">Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────
+         STEP · Residency Documents
+    ───────────────────────────────── -->
+    <section id="step-residency" class="step" role="region" aria-labelledby="res-heading" hidden>
+      <div class="step-inner">
+        <h2 id="res-heading" class="step-heading" data-i18n="res_heading">Proof of Residency</h2>
+        <p class="step-sub" data-i18n="res_sub"></p>
+
+        <!-- ONE doc reminder -->
+        <div class="notice notice-info id-reminder" role="note">
+          <span class="notice-icon" aria-hidden="true"><svg width="20" height="20" aria-hidden="true"><use href="#icon-info"/></svg></span>
+          <strong data-i18n="res_one_doc_reminder">You only need to bring ONE document from this list.</strong>
+        </div>
+
+        <!-- 60-day reminder (prominent) -->
+        <div class="notice notice-warning" role="note">
+          <span class="notice-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="2"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+          <span data-i18n="res_60day"></span>
+        </div>
+
+        <p class="doc-instruction" data-i18n="res_instruction">Select the document you plan to bring:</p>
+
+        <!-- Residency document checkboxes (populated by JS) -->
+        <div id="residency-docs-container" class="docs-container"></div>
+
+        <!-- No-residency-docs panel (shown live when _none radio selected) -->
+        <div id="res-none-panel" class="not-eligible-panel" role="alert" hidden>
+          <div class="not-elig-icon" aria-hidden="true">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <p class="not-elig-heading" data-i18n="res_none_heading"></p>
+          <p class="not-elig-call" data-i18n="res_none_call"></p>
+        </div>
+
+        <!-- Validation feedback -->
+        <div id="res-feedback" class="doc-feedback" role="status" hidden></div>
+
+        <!-- Call help note -->
+        <p id="res-call-help-p" class="call-help" data-i18n="res_call_help"></p>
+
+        <div class="nav-buttons">
+          <button class="btn btn-back" id="res-back" data-i18n="btn_back">Back</button>
+          <button class="btn btn-next" id="res-next" data-i18n="btn_next">Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────
+         STEP · Your Visit
+    ───────────────────────────────── -->
+    <section id="step-visit" class="step" role="region" aria-labelledby="vi-heading" hidden>
+      <div class="step-inner">
+        <h2 id="vi-heading" class="step-heading" data-i18n="vi_heading">Your Visit</h2>
+        <p class="step-sub" data-i18n="vi_sub"></p>
+
+        <div class="visit-grid">
+
+          <!-- Location -->
+          <div class="visit-card">
+            <div class="visit-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="9" r="2.5" stroke="currentColor" stroke-width="2"/></svg></div>
+            <h3 class="visit-card-heading" data-i18n="vi_location_h">Location</h3>
+            <p class="visit-card-body">
+              <strong data-i18n="vi_location_name">City Hall – License Division, Room 105</strong><br>
+              <span data-i18n="vi_location_addr">200 East Wells Street, Milwaukee, WI 53202</span>
+            </p>
+            <a
+              href="https://maps.google.com/?q=200+East+Wells+Street+Milwaukee+WI+53202"
+              class="visit-link"
+              target="_blank"
+              rel="noopener noreferrer"
+              id="directions-link"
+              data-i18n-aria-label="vi_get_directions"
+              aria-label="Get directions to Milwaukee City Hall (opens in new tab)"
+            ><span data-i18n="vi_get_directions">Get directions</span> ↗</a>
+          </div>
+
+          <!-- Hours -->
+          <div class="visit-card">
+            <div class="visit-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><polyline points="12 7 12 12 15 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3 class="visit-card-heading" data-i18n="vi_hours_h">Hours</h3>
+            <p class="visit-card-body" data-i18n="vi_hours">Monday through Friday, 8:15 AM – 4:30 PM</p>
+          </div>
+
+          <!-- Fee -->
+          <div class="visit-card">
+            <div class="visit-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" stroke-width="2"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" stroke-width="2"/><line x1="6" y1="14" x2="10" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <h3 class="visit-card-heading" data-i18n="vi_fee_h">Fee</h3>
+            <p class="visit-card-body visit-fee" id="vi-fee-display" data-i18n="vi_fee">$10 (nonrefundable)</p>
+            <p class="visit-card-label" data-i18n="vi_payment_h">Accepted Payment</p>
+            <p class="visit-card-body" data-i18n="vi_payment">Cash, check (payable to City of Milwaukee), or credit/debit card</p>
+          </div>
+
+          <!-- What will happen -->
+          <div class="visit-card visit-card-full">
+            <div class="visit-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" aria-hidden="true"><path d="M8 3h8a1 1 0 011 1v1H7V4a1 1 0 011-1z" stroke="currentColor" stroke-width="2"/><rect x="5" y="5" width="14" height="17" rx="1.5" stroke="currentColor" stroke-width="2"/><line x1="9" y1="10" x2="15" y2="10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="9" y1="14" x2="15" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="9" y1="18" x2="12" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <h3 class="visit-card-heading" data-i18n="vi_what_h">What Will Happen During Your Visit</h3>
+            <ul class="visit-list">
+              <li data-i18n="vi_what_1">Staff will review your original documents and return them to you</li>
+              <li data-i18n="vi_what_2">Your signature will be notarized on the application</li>
+              <li data-i18n="vi_what_3">Your photograph will be taken</li>
+              <li data-i18n="vi_what_4">Translated applications and some bilingual staff are available to assist</li>
+            </ul>
+          </div>
+
+        </div><!-- /visit-grid -->
+
+        <!-- Originals reminder -->
+        <div class="notice notice-important" role="note">
+          <span class="notice-icon" aria-hidden="true"><svg width="20" height="20" aria-hidden="true"><use href="#icon-warning"/></svg></span>
+          <strong data-i18n="vi_originals">You must bring original documents. Copies will not be accepted.</strong>
+        </div>
+
+        <!-- Under-18 guardian reminder (shown dynamically) -->
+        <div id="vi-guardian-notice" class="notice notice-warning" role="note" hidden>
+          <span class="notice-icon" aria-hidden="true"><svg width="20" height="20" aria-hidden="true"><use href="#icon-warning"/></svg></span>
+          <strong data-i18n="vi_guardian"></strong>
+        </div>
+
+        <!-- Download application -->
+        <div class="download-section">
+          <a
+            href="https://city.milwaukee.gov/ImageLibrary/Groups/ccLicenses/Applications/Muni_ID_Application_English.pdf"
+            class="btn btn-download"
+            data-pdf-link
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Download the Municipal ID application form PDF (opens in new tab)"
+          >
+            <span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><path d="M12 3v12M6 11l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="3" y1="21" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span data-i18n="vi_download_btn">Download Application Form (PDF)</span>
+          </a>
+          <p id="pdf-english-notice-visit" class="pdf-notice" data-i18n="vi_pdf_english_notice" hidden></p>
+        </div>
+
+        <!-- Public Records expandable -->
+        <div class="public-records">
+          <h3 class="records-heading" data-i18n="vi_records_h">Public Records</h3>
+          <p class="records-short">
+            <span data-i18n="vi_records_short"></span>
+            <button
+              class="records-toggle"
+              id="records-toggle"
+              aria-expanded="false"
+              aria-controls="records-detail"
+              type="button"
+            ><span data-i18n="vi_learn_more">Learn more</span></button>
+          </p>
+          <div id="records-detail" class="records-detail" hidden>
+            <p data-i18n="vi_records_detail"></p>
+          </div>
+        </div>
+
+        <div class="nav-buttons">
+          <button class="btn btn-back" id="vi-back" data-i18n="btn_back">Back</button>
+          <button class="btn btn-next" id="vi-next" data-i18n="btn_next">Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────
+         STEP · Summary / Checklist
+    ───────────────────────────────── -->
+    <section id="step-summary" class="step" role="region" aria-labelledby="su-heading" hidden>
+      <div class="step-inner">
+
+        <!-- Print/screen header -->
+        <div class="summary-header">
+          <div class="summary-title-block">
+            <h2 id="su-heading" class="step-heading" data-i18n="su_heading">Your Personalized Checklist</h2>
+            <p class="step-sub" data-i18n="su_sub"></p>
+          </div>
+          <p class="pdf-save-hint" data-i18n="su_pdf_save_hint" aria-hidden="true">To save as PDF: select "Save as PDF" or "Microsoft Print to PDF" as your printer destination.</p>
+          <div class="summary-print-header print-only">
+            <p class="print-org">City of Milwaukee – License Division</p>
+            <p class="print-title">Municipal ID Application Checklist</p>
+            <p class="print-addr">200 East Wells Street, Room 105, Milwaukee, WI 53202</p>
+            <p class="print-phone">(414) 286-2238 · milwaukee.gov/id</p>
+          </div>
+          <div class="summary-actions no-print">
+            <button class="btn btn-action" id="btn-print" data-i18n="btn_print">Print Checklist</button>
+            <button class="btn btn-action" id="btn-save" data-i18n="btn_save_pdf">Save as PDF</button>
+          </div>
+        </div>
+
+        <!-- Summary content (populated by JS) -->
+        <div id="summary-content" class="summary-content"></div>
+
+        <!-- After You Apply -->
+        <div class="summary-section after-apply">
+          <h3 class="summary-section-heading" data-i18n="su_after_h">After You Apply</h3>
+          <ul class="summary-list checklist-list">
+            <li data-i18n="su_after_mail">Your ID will generally be mailed within 2 weeks if you meet the requirements</li>
+            <li data-i18n="su_after_vote">The Municipal ID cannot be used to vote in Wisconsin</li>
+            <li data-i18n="su_after_expiry">The ID expires after 5 years</li>
+            <li data-i18n="su_after_notify">Notify the License Division within 10 days if your address changes or your ID is lost or stolen</li>
+            <li data-i18n="su_after_move">If you move outside the City of Milwaukee, the ID will no longer be valid</li>
+          </ul>
+        </div>
+
+        <!-- Visit info reprise -->
+        <div class="summary-section summary-visit-reprise">
+          <h3 class="summary-section-heading" data-i18n="su_visit_h">Visit Information</h3>
+          <ul class="summary-list">
+            <li><strong data-i18n="vi_location_name">City Hall – License Division, Room 105</strong></li>
+            <li data-i18n="vi_location_addr">200 East Wells Street, Milwaukee, WI 53202</li>
+            <li data-i18n="vi_hours">Monday through Friday, 8:15 AM – 4:30 PM</li>
+            <li data-i18n="vi_fee">$10 (nonrefundable)</li>
+          </ul>
+        </div>
+
+        <!-- Download app -->
+        <div class="download-section">
+          <a
+            href="https://city.milwaukee.gov/ImageLibrary/Groups/ccLicenses/Applications/Muni_ID_Application_English.pdf"
+            class="btn btn-download"
+            data-pdf-link
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Download the Municipal ID application form PDF (opens in new tab)"
+          >
+            <span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><path d="M12 3v12M6 11l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="3" y1="21" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span data-i18n="su_download_app">Download Application Form</span>
+          </a>
+          <p id="pdf-english-notice-summary" class="pdf-notice" data-i18n="vi_pdf_english_notice" hidden></p>
+        </div>
+
+        <div class="nav-buttons no-print">
+          <button class="btn btn-back" id="su-back" data-i18n="btn_back">Back</button>
+          <button class="btn btn-ghost" id="su-start-over" data-i18n="btn_start_over">Start Over</button>
+        </div>
+
+      </div>
+    </section>
+
+  </main><!-- /main-content -->
+
+  <!-- ── Persistent Help Footer ── -->
+  <footer class="help-footer" role="contentinfo">
+    <div class="help-footer-inner">
+      <span class="help-label" data-i18n="need_help">Need Help?</span>
+      <a href="tel:4142862238" class="help-phone">
+        <span class="help-call-label" data-i18n="help_call">Call:</span>
+        <span data-i18n="help_phone">(414) 286-2238</span>
+      </a>
+      <a
+        href="https://city.milwaukee.gov/cityclerk/license/Municipal-Identification"
+        class="help-web"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Milwaukee License Division website (opens in new tab)"
+      >
+        <span class="help-web-label" data-i18n="help_website">Website:</span>
+        <span data-i18n="help_web_display">milwaukee.gov/id</span>
+      </a>
+    </div>
+  </footer>
+
+  <!-- ADA accommodation statement — print only -->
+  <div class="ada-statement print-only" aria-hidden="true">
+    <p data-i18n="ada_statement">This material is available in alternative formats for individuals with disabilities upon request. Please contact 414-286-3475, adacoordinator@milwaukee.gov or TTY: 711.</p>
+  </div>
+
+  <!-- AI disclosure notice -->
+  <div class="ai-notice">
+    <p data-i18n="ai_notice">AI tools were used in the development of this application. Non-English translations are machine-generated and may contain inaccuracies.</p>
+  </div>
+
+</div><!-- /wizard-container -->
+
+<script src="wizard.js"></script>
+</body>
+</html>

@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<!--
+  Milwaukee Municipal ID Wizard – dom-tests.html
+  -----------------------------------------------
+  Browser-based DOM simulation tests. Loads index.html in an iframe and
+  runs automated click-through tests for all wizard paths.
+
+  MUST be served via local HTTP server (launch.sh or python -m http.server),
+  NOT opened as file:// — the wizard requires fetch() for translations.json.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Wizard DOM Tests</title>
+  <style>
+    body { font-family: monospace; font-size: 13px; margin: 0; background: #f5f5f5; }
+    #layout { display: flex; height: 100vh; }
+    #panel { width: 420px; flex-shrink: 0; overflow-y: auto; padding: 12px; background: #fff; border-right: 1px solid #ccc; }
+    #wizard-frame { flex: 1; border: none; background: #fff; }
+    h2 { margin: 0 0 8px; font-size: 14px; }
+    #summary { font-size: 15px; font-weight: bold; margin-bottom: 10px; padding: 8px; border-radius: 4px; }
+    #summary.pass { background: #d4edda; color: #155724; }
+    #summary.fail { background: #f8d7da; color: #721c24; }
+    #summary.running { background: #fff3cd; color: #856404; }
+    .section { margin: 8px 0 4px; color: #555; font-weight: bold; border-top: 1px solid #eee; padding-top: 6px; }
+    .pass-line { color: #1a7a40; }
+    .fail-line { color: #c0392b; font-weight: bold; }
+    .warn-line { color: #856404; }
+    #log { line-height: 1.7; }
+  </style>
+</head>
+<body>
+<div id="layout">
+  <div id="panel">
+    <h2>Wizard DOM Tests</h2>
+    <div id="summary" class="running">⏳ Running…</div>
+    <div id="log"></div>
+  </div>
+  <iframe id="wizard-frame" src="index.html" title="Wizard under test"></iframe>
+</div>
+
+<script>
+'use strict';
+
+/* ── State ── */
+const results = [];
+let passed = 0, failed = 0;
+let frame, doc, frameWin;
+
+/* ── Logging ── */
+const log = document.getElementById('log');
+
+function section(name) {
+  const d = document.createElement('div');
+  d.className = 'section';
+  d.textContent = name;
+  log.appendChild(d);
+}
+
+function logLine(pass, name) {
+  const d = document.createElement('div');
+  d.className = pass ? 'pass-line' : 'fail-line';
+  d.textContent = (pass ? '✓ ' : '✗ ') + name;
+  log.appendChild(d);
+  d.scrollIntoView({ block: 'nearest' });
+}
+
+function warn(msg) {
+  const d = document.createElement('div');
+  d.className = 'warn-line';
+  d.textContent = '⚠ ' + msg;
+  log.appendChild(d);
+}
+
+function assert(condition, name) {
+  const p = !!condition;
+  results.push({ pass: p, name });
+  if (p) passed++; else failed++;
+  logLine(p, name);
+  if (!p) console.error('FAIL:', name);
+}
+
+async function wait(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+/* ── Iframe management ── */
+async function resetWizard() {
+  return new Promise(resolve => {
+    function onLoad() {
+      frame.removeEventListener('load', onLoad);
+      doc = frame.contentDocument;
+      frameWin = frame.contentWindow;
+      /* Wait for wizard init (DOMContentLoaded + translations fetch) */
+      setTimeout(resolve, 950);
+    }
+    frame.addEventListener('load', onLoad);
+    frameWin.location.reload();
+  });
+}
+
+/* ── DOM helpers ── */
+function click(sel)   { doc.querySelector(sel)?.click(); }
+function check(sel)   { const el = doc.querySelector(sel); if (el && !el.checked) el.click(); }
+function uncheck(sel) { const el = doc.querySelector(sel); if (el && el.checked)  el.click(); }
+
+function selectRadio(name, value) {
+  const r = doc.querySelector(`input[name="${name}"][value="${value}"]`);
+  if (!r) { console.warn('selectRadio: not found', name, value); return; }
+  r.checked = true;
+  r.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function currentStep() {
+  for (const s of doc.querySelectorAll('.step')) {
+    if (!s.hidden && s.id && s.id.startsWith('step-')) return s.id.replace('step-', '');
+  }
+  return null;
+}
+
+function dotCount()         { return doc.querySelectorAll('.step-dot').length; }
+function clickableDotCount(){ return doc.querySelectorAll('.step-dot-clickable').length; }
+function isVisible(sel)     { const el = doc.querySelector(sel); return el && !el.hidden; }
+function hasClass(sel, cls) { const el = doc.querySelector(sel); return el && el.classList.contains(cls); }
+function cs(sel)            { return frameWin.getComputedStyle(doc.querySelector(sel)); }
+
+function summaryText() {
+  return doc.querySelector('.summary-situation-value')?.textContent?.trim() || '';
+}
+
+/* ── Common sub-sequences ── */
+async function clickEnglish() { click('.lang-btn[data-lang="en"]'); await wait(100); }
+
+async function passEligibilityAdult() {
+  selectRadio('elig_res',    'yes');
+  selectRadio('elig_over18', 'yes');
+  await wait(50);
+  click('#el-next');
+  await wait(100);
+}
+
+async function passEligibilityMinor() {
+  selectRadio('elig_res',    'yes');
+  selectRadio('elig_over18', 'no');
+  await wait(150); /* wait for over14 wrap reveal */
+  selectRadio('elig_over14', 'yes');
+  await wait(50);
+  click('#el-next');
+  await wait(100);
+}
+
+async function checkOptionADoc() {
+  selectRadio('identity_a_doc', 'doc_passport');
+  await wait(80);
+}
+
+async function checkOptionBDocs() {
+  selectRadio('identity_b_photo', 'doc_student_id');
+  selectRadio('identity_b_dob', 'doc_birth_cert');
+  await wait(80);
+}
+
+async function checkResidencyDoc() {
+  selectRadio('residency_doc', 'rdoc_utility');
+  await wait(80);
+}
+
+/* ══════════════════════════════════════════════
+   PATH 1 · New ID, Option A (7 steps) + CSS tests
+══════════════════════════════════════════════ */
+async function testPath1() {
+  section('Path 1: New ID – Option A (7 steps) + CSS tests');
+  await resetWizard();
+
+  await clickEnglish();
+  assert(currentStep() === 'scenario', 'P1: after English → scenario');
+
+  selectRadio('scenario', 'new');
+  await wait(50);
+  click('#sc-next');
+  await wait(100);
+  assert(currentStep() === 'eligibility', 'P1: after new + Next → eligibility');
+
+  await passEligibilityAdult();
+  assert(currentStep() === 'identity_a', 'P1: after eligibility → identity_a');
+
+  /* CSS tests C1/C4/C5/C6 (while on identity_a) */
+  section('CSS Tests (C1/C4/C5/C6 – radio-item-none)');
+  const noneItem = doc.querySelector('.radio-item-none');
+  assert(noneItem !== null, 'C4: .radio-item-none exists in DOM');
+  if (noneItem) {
+    const noneStyle = cs('.radio-item-none');
+    const borderT = parseFloat(noneStyle.borderTopWidth);
+    assert(borderT >= 2, 'C6: .radio-item-none has visible top border separator');
+  }
+  section('CSS Tests C2/C3 (checked after clickable dots appear)');
+
+  /* Continue Path 1 */
+  section('Path 1 (continued)');
+  assert(!isVisible('#ida-feedback'), 'P1: ida-feedback hidden before check');
+
+  await checkOptionADoc();
+  assert(isVisible('#ida-feedback'), 'P1: ida-feedback visible after check');
+  assert(hasClass('#ida-feedback', 'feedback-success'), 'P1: ida-feedback is feedback-success');
+
+  click('#ida-next');
+  await wait(100);
+  assert(currentStep() === 'residency', 'P1: Option A → skips identity_b → residency');
+  assert(!isVisible('#step-identity_b'), 'P1: identity_b is hidden');
+
+  /* CSS tests C2/C3 (now at residency, clickable dots exist for done steps) */
+  const clickDot = doc.querySelector('.step-dot-clickable');
+  const clickLabel = doc.querySelector('.step-label-clickable');
+  if (clickDot) {
+    const dotStyle = frameWin.getComputedStyle(clickDot);
+    assert(dotStyle.cursor === 'pointer', 'C2: .step-dot-clickable cursor:pointer');
+  } else {
+    warn('C2: no .step-dot-clickable found (dots may be hidden on mobile)');
+  }
+  if (clickLabel) {
+    const labelStyle = frameWin.getComputedStyle(clickLabel);
+    assert(labelStyle.cursor === 'pointer', 'C3: .step-label-clickable cursor:pointer');
+  } else {
+    warn('C3: no .step-label-clickable found (labels may be hidden on mobile)');
+  }
+
+  section('Path 1 (residency → summary)');
+  assert(!isVisible('#res-feedback'), 'P1: res-feedback hidden before check');
+
+  await checkResidencyDoc();
+  assert(isVisible('#res-feedback'), 'P1: res-feedback visible after check');
+  assert(hasClass('#res-feedback', 'feedback-success'), 'P1: res-feedback is feedback-success');
+
+  click('#res-next');
+  await wait(100);
+  assert(currentStep() === 'visit', 'P1: after residency → visit');
+
+  click('#vi-next');
+  await wait(100);
+  assert(currentStep() === 'summary', 'P1: after visit → summary');
+
+  assert(summaryText().includes('New Municipal ID') || summaryText().includes('first-time'),
+    'P1: summary shows new ID situation');
+
+  /* Verify 7 dots */
+  const dc = dotCount();
+  assert(dc === 7, `P1: progress bar shows 7 dots (got ${dc})`);
+}
+
+/* ══════════════════════════════════════════════
+   PATH 2 · New ID, Option B (8 steps)
+══════════════════════════════════════════════ */
+async function testPath2() {
+  section('Path 2: New ID – Option B (8 steps)');
+  await resetWizard();
+
+  await clickEnglish();
+  selectRadio('scenario', 'new');
+  await wait(50);
+  click('#sc-next');
+  await wait(100);
+  await passEligibilityAdult();
+  assert(currentStep() === 'identity_a', 'P2: arrived at identity_a');
+
+  /* Select "I don't have any of these" radio */
+  selectRadio('identity_a_doc', '_none');
+  await wait(100);
+  assert(currentStep() === 'identity_b', 'P2: "I don\'t have any" → identity_b');
+  assert(dotCount() === 8, `P2: progress bar shows 8 dots (got ${dotCount()})`);
+
+  /* Verify Option A radios are NOT rendered in identity_b */
+  const photoAndDobInB = doc.querySelectorAll('#identity-b-docs-container input[name="identity_a_doc"]');
+  assert(photoAndDobInB.length === 0,
+    `P2: identity_b contains no Option A radios (got ${photoAndDobInB.length})`);
+
+  /* Verify photo-only and DOB-only radio groups are present */
+  const photoOnlyInB = doc.querySelectorAll('#identity-b-docs-container input[name="identity_b_photo"]');
+  const dobOnlyInB   = doc.querySelectorAll('#identity-b-docs-container input[name="identity_b_dob"]');
+  assert(photoOnlyInB.length > 0, `P2: identity_b has photo-only radios (got ${photoOnlyInB.length})`);
+  assert(dobOnlyInB.length > 0,   `P2: identity_b has DOB-only radios (got ${dobOnlyInB.length})`);
+
+  await checkOptionBDocs();
+  assert(isVisible('#idb-feedback'), 'P2: idb-feedback visible after valid selection');
+  assert(hasClass('#idb-feedback', 'feedback-success'), 'P2: idb-feedback is feedback-success');
+
+  click('#idb-next');
+  await wait(100);
+  assert(currentStep() === 'residency', 'P2: after identity_b → residency');
+  assert(dotCount() === 8, `P2: 8 dots maintained on residency`);
+
+  await checkResidencyDoc();
+  click('#res-next');
+  await wait(100);
+  assert(currentStep() === 'visit', 'P2: after residency → visit');
+
+  click('#vi-next');
+  await wait(100);
+  assert(currentStep() === 'summary', 'P2: after visit → summary');
+  assert(summaryText().includes('New Municipal ID') || summaryText().includes('first-time'),
+    'P2: summary shows new ID situation');
+
+  /* Verify Option B docs appear in summary (photoOnly + dobOnly) */
+  const sc = doc.getElementById('summary-content')?.textContent || '';
+  assert(sc.includes('Student ID'), 'P2: summary includes Student ID (photoOnly doc)');
+  assert(sc.includes('Birth Certificate'), 'P2: summary includes Birth Certificate (dobOnly doc)');
+}
+
+/* ══════════════════════════════════════════════
+   PATH 3 · Address change, has old ID (6 steps)
+══════════════════════════════════════════════ */
+async function testPath3() {
+  section('Path 3: Address change – has old ID (6 steps)');
+  await resetWizard();
+
+  await clickEnglish();
+  selectRadio('scenario', 'already_have');
+  await wait(100);
+  selectRadio('sub_scenario', 'address_change');
+  await wait(50);
+  click('#sc-next');
+  await wait(100);
+
+  assert(currentStep() === 'confirm_id', 'P3: after address_change → confirm_id');
+  assert(dotCount() === 6, `P3: progress bar shows 6 dots (got ${dotCount()})`);
+
+  selectRadio('confirm_id', 'yes');
+  await wait(50);
+  click('#ci-next');
+  await wait(100);
+  assert(currentStep() === 'residency', 'P3: confirm_id=yes → residency');
+
+  await checkResidencyDoc();
+  click('#res-next');
+  await wait(100);
+  assert(currentStep() === 'visit', 'P3: after residency → visit');
+
+  const feeText = doc.getElementById('vi-fee-display')?.textContent || '';
+  assert(feeText.toLowerCase().includes('replacement'), 'P3: fee shows replacement fee text');
+
+  click('#vi-next');
+  await wait(100);
+  assert(currentStep() === 'summary', 'P3: after visit → summary');
+  assert(summaryText().includes('Address Change') || summaryText().includes('Reemplazo'),
+    'P3: summary shows address change situation (not lost/stolen)');
+  assert(!summaryText().includes('Lost, Stolen'), 'P3: summary does NOT show lost/stolen text');
+}
+
+/* ══════════════════════════════════════════════
+   PATH 4 · Address change, no old ID (redirects to full path)
+══════════════════════════════════════════════ */
+async function testPath4() {
+  section('Path 4: Address change – no old ID (redirects to full path)');
+  await resetWizard();
+
+  await clickEnglish();
+  selectRadio('scenario', 'already_have');
+  await wait(100);
+  selectRadio('sub_scenario', 'address_change');
+  await wait(50);
+  click('#sc-next');
+  await wait(100);
+  assert(currentStep() === 'confirm_id', 'P4: arrived at confirm_id');
+  assert(dotCount() === 6, 'P4: starts with 6 dots');
+
+  selectRadio('confirm_id', 'no');
+  await wait(50);
+  click('#ci-next');
+  await wait(100);
+
+  assert(currentStep() === 'eligibility', 'P4: confirm_id=no → redirected to eligibility');
+  assert(dotCount() !== 6, `P4: progress bar is NOT 6 dots after redirect (got ${dotCount()})`);
+
+  /* Confirm radio is cleared */
+  const ciYes = doc.querySelector('input[name="confirm_id"][value="yes"]');
+  const ciNo  = doc.querySelector('input[name="confirm_id"][value="no"]');
+  assert(!ciYes?.checked && !ciNo?.checked, 'P4: confirm_id radio cleared after redirect');
+
+  await passEligibilityAdult();
+  assert(currentStep() === 'identity_a', 'P4: eligibility → identity_a');
+
+  await checkOptionADoc();
+  click('#ida-next');
+  await wait(100);
+  assert(currentStep() === 'residency', 'P4: identity_a → residency');
+
+  await checkResidencyDoc();
+  click('#res-next');
+  await wait(100);
+  assert(currentStep() === 'visit', 'P4: residency → visit');
+
+  click('#vi-next');
+  await wait(100);
+  assert(currentStep() === 'summary', 'P4: visit → summary');
+  assert(summaryText().includes('Lost, Stolen, or Damaged'),
+    'P4: summary shows Lost/Stolen/Damaged (correct situation for redirected path)');
+}
+
+/* ══════════════════════════════════════════════
+   PATH 5 · Lost/stolen/damaged (full path)
+══════════════════════════════════════════════ */
+async function testPath5() {
+  section('Path 5: Lost/Stolen/Damaged (full path)');
+  await resetWizard();
+
+  await clickEnglish();
+  selectRadio('scenario', 'already_have');
+  await wait(100);
+  selectRadio('sub_scenario', 'lost_stolen_damaged');
+  await wait(50);
+  click('#sc-next');
+  await wait(100);
+
+  assert(currentStep() === 'eligibility', 'P5: lost_stolen_damaged → eligibility (not confirm_id)');
+  const dc = dotCount();
+  assert(dc === 7 || dc === 8, `P5: 7 or 8 dots for full path (got ${dc})`);
+
+  await passEligibilityAdult();
+  assert(currentStep() === 'identity_a', 'P5: eligibility → identity_a');
+
+  await checkOptionADoc();
+  click('#ida-next');
+  await wait(100);
+  assert(currentStep() === 'residency', 'P5: identity_a → residency');
+
+  await checkResidencyDoc();
+  click('#res-next');
+  await wait(100);
+  click('#vi-next');
+  await wait(100);
+  assert(currentStep() === 'summary', 'P5: reached summary');
+  assert(summaryText().includes('Lost, Stolen, or Damaged'),
+    'P5: summary shows su_sc_lost_damaged');
+}
+
+/* ══════════════════════════════════════════════
+   PATH 6 · Expired (full path)
+══════════════════════════════════════════════ */
+async function testPath6() {
+  section('Path 6: Expired ID (full path)');
+  await resetWizard();
+
+  await clickEnglish();
+  selectRadio('scenario', 'already_have');
+  await wait(100);
+  selectRadio('sub_scenario', 'expired');
+  await wait(50);
+  click('#sc-next');
+  await wait(100);
+  assert(currentStep() === 'eligibility', 'P6: expired → eligibility');
+
+  await passEligibilityAdult();
+  await checkOptionADoc();
+  click('#ida-next');
+  await wait(100);
+  await checkResidencyDoc();
+  click('#res-next');
+  await wait(100);
+  click('#vi-next');
+  await wait(100);
+  assert(currentStep() === 'summary', 'P6: reached summary');
+  assert(summaryText().includes('Renewal') || summaryText().includes('Expired'),
+    'P6: summary shows su_sc_expired (Renewal/Expired)');
+}
+
+/* ══════════════════════════════════════════════
+   PATH 7 · Minor (14–17) with guardian notice
+══════════════════════════════════════════════ */
+async function testPath7() {
+  section('Path 7: Minor (14–17) guardian flow');
+  await resetWizard();
+
+  await clickEnglish();
+  selectRadio('scenario', 'new');
+  await wait(50);
+  click('#sc-next');
+  await wait(100);
+
+  selectRadio('elig_res',    'yes');
+  selectRadio('elig_over18', 'no');
+  await wait(200);
+
+  assert(isVisible('#over14-question-wrap'), 'P7: over14 question revealed when over18=no');
+
+  selectRadio('elig_over14', 'yes');
+  await wait(100);
+  assert(isVisible('#under18-notice'), 'P7: under18 guardian notice shown when 14–17');
+
+  click('#el-next');
+  await wait(100);
+  assert(currentStep() === 'identity_a', 'P7: minor passes eligibility → identity_a');
+
+  await checkOptionADoc();
+  click('#ida-next');
+  await wait(100);
+  await checkResidencyDoc();
+  click('#res-next');
+  await wait(100);
+
+  assert(currentStep() === 'visit', 'P7: reached visit step');
+  assert(isVisible('#vi-guardian-notice'), 'P7: guardian notice shown on visit step');
+
+  click('#vi-next');
+  await wait(100);
+  assert(currentStep() === 'summary', 'P7: reached summary');
+  const reminders = [...doc.querySelectorAll('.summary-reminder-item')].map(el => el.textContent);
+  assert(reminders.some(r => r.toLowerCase().includes('guardian')),
+    'P7: summary contains guardian reminder');
+}
+
+/* ══════════════════════════════════════════════
+   PATH 8 · Progress bar backward navigation
+══════════════════════════════════════════════ */
+async function testPath8() {
+  section('Path 8: Progress bar backward navigation');
+  await resetWizard();
+
+  /* Navigate to visit step (7-step path) */
+  await clickEnglish();
+  selectRadio('scenario', 'new');
+  await wait(50);
+  click('#sc-next');
+  await wait(100);
+  await passEligibilityAdult();
+  await checkOptionADoc();
+  click('#ida-next');
+  await wait(100);
+  await checkResidencyDoc();
+  click('#res-next');
+  await wait(100);
+  assert(currentStep() === 'visit', 'P8: setup: reached visit step');
+
+  /* Visit = step 6 of 7, so 5 completed steps (language–residency) are clickable */
+  const clickable = clickableDotCount();
+  assert(clickable === 5, `P8: 5 clickable dots at visit step (got ${clickable})`);
+
+  const currentDot = doc.querySelector('.step-dot.current');
+  assert(currentDot && !currentDot.classList.contains('step-dot-clickable'),
+    'P8: current dot is NOT clickable');
+
+  /* Click the eligibility dot to navigate back */
+  const eligDot = doc.querySelector('.step-dot-clickable[data-step="eligibility"]');
+  assert(eligDot !== null, 'P8: eligibility dot is clickable');
+  if (eligDot) {
+    eligDot.click();
+    await wait(100);
+    assert(currentStep() === 'eligibility', 'P8: click eligibility dot → eligibility step');
+
+    const resYes = doc.querySelector('input[name="elig_res"][value="yes"]');
+    const o18Yes = doc.querySelector('input[name="elig_over18"][value="yes"]');
+    assert(resYes?.checked && o18Yes?.checked,
+      'P8: eligibility radio selections preserved');
+
+    click('#el-next');
+    await wait(100);
+    assert(currentStep() === 'identity_a', 'P8: from eligibility → identity_a');
+
+    const passportRadio = doc.querySelector('input[name="identity_a_doc"][value="doc_passport"]');
+    assert(passportRadio?.checked, 'P8: doc_passport radio still selected');
+
+    click('#ida-next');
+    await wait(100);
+    assert(currentStep() === 'residency', 'P8: Option A still set → skips identity_b');
+
+    const utilityRadio = doc.querySelector('input[name="residency_doc"][value="rdoc_utility"]');
+    assert(utilityRadio?.checked, 'P8: rdoc_utility radio still selected');
+  }
+}
+
+/* ══════════════════════════════════════════════
+   PATH 9 · Green notification toggle
+══════════════════════════════════════════════ */
+async function testPath9() {
+  section('Path 9: Green success notification toggle');
+  await resetWizard();
+
+  await clickEnglish();
+  selectRadio('scenario', 'new');
+  await wait(50);
+  click('#sc-next');
+  await wait(100);
+  await passEligibilityAdult();
+  assert(currentStep() === 'identity_a', 'P9: at identity_a');
+
+  assert(!isVisible('#ida-feedback'), 'P9: ida-feedback hidden initially');
+
+  selectRadio('identity_a_doc', 'doc_passport');
+  await wait(80);
+  assert(isVisible('#ida-feedback'), 'P9: ida-feedback shown after selection');
+  assert(hasClass('#ida-feedback', 'feedback-success'), 'P9: success class on ida-feedback');
+
+  selectRadio('identity_a_doc', '_none');
+  await wait(80);
+  assert(!isVisible('#ida-feedback'), 'P9: ida-feedback hidden after selecting none');
+
+  selectRadio('identity_a_doc', 'doc_dl');
+  await wait(80);
+  assert(isVisible('#ida-feedback'), 'P9: ida-feedback shown again after re-selection');
+
+  click('#ida-next');
+  await wait(100);
+
+  /* Navigate to residency */
+  assert(currentStep() === 'residency', 'P9: at residency');
+  assert(!isVisible('#res-feedback'), 'P9: res-feedback hidden initially');
+
+  selectRadio('residency_doc', 'rdoc_utility');
+  await wait(80);
+  assert(isVisible('#res-feedback'), 'P9: res-feedback shown after selection');
+  assert(hasClass('#res-feedback', 'feedback-success'), 'P9: success class on res-feedback');
+}
+
+/* ══════════════════════════════════════════════
+   PATH 10 · Language switching mid-flow
+══════════════════════════════════════════════ */
+async function testPath10() {
+  section('Path 10: Language switching mid-flow');
+  await resetWizard();
+
+  await clickEnglish();
+  selectRadio('scenario', 'new');
+  await wait(50);
+  click('#sc-next');
+  await wait(100);
+  await passEligibilityAdult();
+  assert(currentStep() === 'identity_a', 'P10: at identity_a in English');
+
+  selectRadio('identity_a_doc', 'doc_passport');
+  await wait(80);
+
+  /* Navigate back to language via progress bar */
+  const langDot = doc.querySelector('.step-dot-clickable[data-step="language"]');
+  if (langDot) {
+    langDot.click();
+    await wait(150);
+    assert(currentStep() === 'language', 'P10: progress bar click → language step');
+  } else {
+    /* Fall back: use back buttons */
+    warn('P10: language dot not found, using back navigation');
+    click('#el-back');
+    await wait(80);
+    click('#sc-back');
+    await wait(80);
+    assert(currentStep() === 'language', 'P10: navigated back to language');
+  }
+
+  /* Switch to Spanish */
+  click('.lang-btn[data-lang="es"]');
+  await wait(200);
+  assert(doc.documentElement.lang === 'es', 'P10: document lang is es after Spanish click');
+  assert(currentStep() === 'scenario', 'P10: after language switch → scenario');
+
+  /* Navigate forward to identity_a */
+  selectRadio('scenario', 'new');
+  await wait(50);
+  click('#sc-next');
+  await wait(100);
+  await passEligibilityAdult();
+  await wait(50);
+
+  if (currentStep() === 'identity_a') {
+    const noOptionLabel = doc.querySelector('label[for="radio-none-option-a"]');
+    assert(noOptionLabel && noOptionLabel.textContent !== 'id_no_option_a',
+      'P10: "I don\'t have any" radio label shows translated text (not raw key)');
+
+    const passportLabel = doc.querySelector('label[for="radio-doc_passport"]');
+    assert(passportLabel && passportLabel.textContent !== 'doc_passport',
+      'P10: doc labels show translated text (not raw keys)');
+  } else {
+    warn('P10: did not reach identity_a after language switch');
+  }
+}
+
+/* ══════════════════════════════════════════════
+   PATH 11 · Not-eligible paths
+══════════════════════════════════════════════ */
+async function testPath11() {
+  section('Path 11: Not-eligible paths');
+  await resetWizard();
+
+  await clickEnglish();
+  selectRadio('scenario', 'new');
+  await wait(50);
+  click('#sc-next');
+  await wait(100);
+
+  /* Residency = no */
+  selectRadio('elig_res', 'no');
+  await wait(100);
+  assert(isVisible('#not-eligible-panel'), 'P11: not-eligible panel shown when res=no');
+  assert(!isVisible('#el-next') || doc.getElementById('el-next')?.hidden,
+    'P11: Next button hidden when not eligible');
+
+  /* Switch back to yes, then age < 14 */
+  selectRadio('elig_res',    'yes');
+  await wait(100);
+  assert(!isVisible('#not-eligible-panel'), 'P11: not-eligible panel hidden when res=yes again');
+
+  selectRadio('elig_over18', 'no');
+  await wait(150);
+  selectRadio('elig_over14', 'no');
+  await wait(100);
+  assert(isVisible('#not-eligible-panel'), 'P11: not-eligible panel shown when under 14');
+}
+
+/* ══════════════════════════════════════════════
+   EDGE CASES E1–E10
+══════════════════════════════════════════════ */
+async function testEdgeCases() {
+  section('Edge Case E1: double-click Next on identity_a with Option A');
+  await resetWizard();
+  await clickEnglish();
+  selectRadio('scenario', 'new'); await wait(50); click('#sc-next'); await wait(100);
+  await passEligibilityAdult();
+  await checkOptionADoc();
+  /* Double-click Next */
+  click('#ida-next');
+  click('#ida-next');
+  await wait(150);
+  assert(currentStep() === 'residency', 'E1: double-click → ends on residency (not visit)');
+
+  section('Edge Case E2: Next on identity_a with nothing selected → identity_b');
+  await resetWizard();
+  await clickEnglish();
+  selectRadio('scenario', 'new'); await wait(50); click('#sc-next'); await wait(100);
+  await passEligibilityAdult();
+  /* Click Next with nothing selected */
+  click('#ida-next');
+  await wait(100);
+  assert(currentStep() === 'identity_b', 'E2: Next with nothing selected → identity_b');
+
+  section('Edge Case E3: identity_b – photoOnly only, Next shows error');
+  selectRadio('identity_b_photo', 'doc_student_id');
+  await wait(80);
+  click('#idb-next');
+  await wait(100);
+  assert(currentStep() === 'identity_b', 'E3: stays on identity_b (missing DOB)');
+  assert(isVisible('#idb-feedback'), 'E3: error feedback shown');
+  assert(hasClass('#idb-feedback', 'feedback-error'), 'E3: feedback-error class present');
+
+  section('Edge Case E4: identity_b – both groups filled, Next proceeds');
+  selectRadio('identity_b_dob', 'doc_birth_cert');
+  await wait(80);
+  assert(hasClass('#idb-feedback', 'feedback-success'), 'E4: feedback-success when both groups filled');
+  click('#idb-next');
+  await wait(100);
+  assert(currentStep() === 'residency', 'E4: both groups filled → proceeds to residency');
+
+  section('Edge Case E5: residency – Next with nothing selected shows error');
+  /* Already at residency from E4 */
+  assert(currentStep() === 'residency', 'E5 setup: at residency');
+  click('#res-next');
+  await wait(100);
+  assert(currentStep() === 'residency', 'E5: Next with no docs → stays on residency');
+  assert(isVisible('#res-feedback'), 'E5: error feedback shown on residency');
+
+  section('Edge Case E6: eligibility – Next with nothing selected shows error');
+  await resetWizard();
+  await clickEnglish();
+  selectRadio('scenario', 'new'); await wait(50); click('#sc-next'); await wait(100);
+  assert(currentStep() === 'eligibility', 'E6 setup: at eligibility');
+  click('#el-next');
+  await wait(100);
+  assert(currentStep() === 'eligibility', 'E6: Next with nothing selected → stays on eligibility');
+  assert(isVisible('#el-error'), 'E6: error shown on eligibility');
+
+  section('Edge Case E7: scenario – Next without selection shows error');
+  await resetWizard();
+  await clickEnglish();
+  assert(currentStep() === 'scenario', 'E7 setup: at scenario');
+  click('#sc-next');
+  await wait(100);
+  assert(currentStep() === 'scenario', 'E7: Next without selection → stays on scenario');
+  assert(isVisible('#sc-error'), 'E7: error shown on scenario');
+
+  section('Edge Case E8: already_have without sub-scenario shows error');
+  selectRadio('scenario', 'already_have');
+  await wait(100);
+  click('#sc-next');
+  await wait(100);
+  assert(currentStep() === 'scenario', 'E8: Next with no sub-scenario → stays on scenario');
+  assert(isVisible('#sc-error'), 'E8: sub-scenario error shown');
+
+  section('Edge Case E9: confirm_id=no redirect, then progress bar back to scenario, change to new');
+  await resetWizard();
+  await clickEnglish();
+  selectRadio('scenario', 'already_have'); await wait(100);
+  selectRadio('sub_scenario', 'address_change'); await wait(50);
+  click('#sc-next'); await wait(100);
+  selectRadio('confirm_id', 'no'); await wait(50);
+  click('#ci-next'); await wait(100);
+  assert(currentStep() === 'eligibility', 'E9: redirected to eligibility');
+
+  /* Go back to scenario via progress bar */
+  const scDot = doc.querySelector('.step-dot-clickable[data-step="scenario"]');
+  if (scDot) {
+    scDot.click();
+    await wait(100);
+    assert(currentStep() === 'scenario', 'E9: clicked back to scenario');
+    /* Change to new */
+    selectRadio('scenario', 'new');
+    await wait(80);
+    click('#sc-next');
+    await wait(100);
+    assert(currentStep() === 'eligibility', 'E9: new path → eligibility');
+    await passEligibilityAdult();
+    assert(currentStep() === 'identity_a', 'E9: new ID path proceeds correctly');
+    const dc = dotCount();
+    assert(dc === 7 || dc === 8, `E9: correct step count for new ID path (got ${dc})`);
+  } else {
+    warn('E9: scenario dot not clickable from eligibility (unexpected)');
+  }
+
+  section('Edge Case E10: change scenario mid-flow via progress bar');
+  await resetWizard();
+  await clickEnglish();
+  selectRadio('scenario', 'new'); await wait(50); click('#sc-next'); await wait(100);
+  await passEligibilityAdult();
+  await checkOptionADoc();
+  click('#ida-next'); await wait(100);
+  await checkResidencyDoc();
+  click('#res-next'); await wait(100);
+  assert(currentStep() === 'visit', 'E10 setup: at visit step');
+
+  const scDot2 = doc.querySelector('.step-dot-clickable[data-step="scenario"]');
+  if (scDot2) {
+    scDot2.click();
+    await wait(100);
+    assert(currentStep() === 'scenario', 'E10: back to scenario via dot');
+    selectRadio('scenario', 'already_have'); await wait(100);
+    selectRadio('sub_scenario', 'expired'); await wait(50);
+    click('#sc-next'); await wait(100);
+    assert(currentStep() === 'eligibility', 'E10: changed to expired → goes to eligibility');
+    assert(dotCount() !== 6, 'E10: NOT 6 dots (full path)');
+  } else {
+    warn('E10: scenario dot not found at visit step');
+  }
+}
+
+/* ══════════════════════════════════════════════
+   PRINT LAYOUT F1/F2 (CSS-only, no window.print)
+══════════════════════════════════════════════ */
+async function testPrint() {
+  section('Print Layout F1/F2 (CSS rule verification)');
+
+  /* Check that print-only elements have display:none on screen */
+  const printHeader = doc.querySelector('.summary-print-header');
+  if (printHeader) {
+    const style = frameWin.getComputedStyle(printHeader);
+    assert(style.display === 'none', 'F1: .summary-print-header is display:none on screen');
+  } else {
+    warn('F1: .summary-print-header not found (may not exist outside summary step)');
+  }
+
+  /* Verify .print-only has display:none on screen (global rule) */
+  const printOnly = doc.querySelector('.print-only');
+  if (printOnly) {
+    const style = frameWin.getComputedStyle(printOnly);
+    assert(style.display === 'none', 'F1: .print-only is display:none on screen');
+  } else {
+    warn('F1: .print-only element not found in current step');
+  }
+
+  /* No .no-print class should cause display:none normally */
+  const noPrint = doc.querySelector('.no-print');
+  if (noPrint) {
+    const style = frameWin.getComputedStyle(noPrint);
+    assert(style.display !== 'none', 'F2: .no-print is visible on screen (only hidden in print)');
+  }
+}
+
+/* ══════════════════════════════════════════════
+   MAIN RUNNER
+══════════════════════════════════════════════ */
+async function runTests() {
+  const summary = document.getElementById('summary');
+
+  try {
+    await testPath1();
+    await testPath2();
+    await testPath3();
+    await testPath4();
+    await testPath5();
+    await testPath6();
+    await testPath7();
+    await testPath8();
+    await testPath9();
+    await testPath10();
+    await testPath11();
+    await testEdgeCases();
+    await testPrint();
+  } catch (err) {
+    const d = document.createElement('div');
+    d.style.cssText = 'color:red;font-weight:bold;margin-top:8px';
+    d.textContent = '💥 Test runner threw: ' + err.message;
+    log.appendChild(d);
+    console.error(err);
+  }
+
+  const total = passed + failed;
+  summary.textContent = `${total} tests: ${passed} passed, ${failed} failed`;
+  summary.className = failed > 0 ? 'fail' : 'pass';
+
+  if (failed === 0) {
+    summary.textContent = `✅ All ${total} tests passed`;
+  } else {
+    const failNames = results.filter(r => !r.pass).map(r => '✗ ' + r.name);
+    const d = document.createElement('div');
+    d.style.cssText = 'margin-top:8px;font-weight:bold;color:#721c24';
+    d.textContent = 'Failed tests:';
+    log.appendChild(d);
+    failNames.forEach(name => {
+      const li = document.createElement('div');
+      li.style.color = '#c0392b';
+      li.textContent = name;
+      log.appendChild(li);
+    });
+  }
+
+  console.log(`\nDOM tests: ${passed}/${total} passed, ${failed} failed`);
+}
+
+/* ── Entry point ── */
+window.addEventListener('load', () => {
+  frame = document.getElementById('wizard-frame');
+  frameWin = frame.contentWindow;
+
+  /* Wait for iframe's wizard to initialize */
+  function startWhenReady() {
+    doc = frame.contentDocument;
+    frameWin = frame.contentWindow;
+    setTimeout(runTests, 950);
+  }
+
+  if (frame.contentDocument.readyState === 'complete') {
+    startWhenReady();
+  } else {
+    frame.addEventListener('load', startWhenReady, { once: true });
+  }
+});
+</script>
+</body>
+</html>
